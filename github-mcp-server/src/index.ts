@@ -139,7 +139,17 @@ export class MyMCP extends McpAgent<Env, {}, Props> {
     // Helper function to decode base64 content
     const decodeBase64 = (base64: string): string => {
       try {
-        return atob(base64.replace(/\n/g, ''));
+        // atob() only handles Latin-1/ASCII byte values.
+        // Files with Unicode characters (→, ⊊, λ, á, é, ñ, etc.)
+        // produce garbled text or throw, causing a generic
+        // "Error occurred during tool execution" from the MCP layer.
+        // Fix: decode via Uint8Array + TextDecoder('utf-8').
+        const binary = atob(base64.replace(/\n/g, ''));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return new TextDecoder('utf-8').decode(bytes);
       } catch {
         return base64; // Return as-is if decode fails
       }
