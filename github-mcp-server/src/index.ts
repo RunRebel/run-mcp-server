@@ -28,7 +28,7 @@ type Props = {
 const githubUsernameSchema = z.string().regex(/^[a-zA-Z0-9-]+$/, "Invalid GitHub username format").max(39); // GitHub limit
 const githubRepoNameSchema = z.string().regex(/^[a-zA-Z0-9._-]+$/, "Invalid repository name format").max(100); // GitHub limit
 const githubBranchNameSchema = z.string().regex(/^[a-zA-Z0-9/_.-]+$/, "Invalid branch name format").max(255); // Prevent ReDoS
-const githubPathSchema = z.string().regex(/^[^\.\/][a-zA-Z0-9-_\.\/]*$/, "Invalid file path - no traversal allowed").max(255);
+const githubPathSchema = z.string().regex(/^(?!.*\.\.)[a-zA-Z0-9._\-\/]+$/, "Invalid file path - no traversal allowed").max(255);
 const perPageSchema = z.number().min(1).max(100).default(30).optional();
 
 // Constants
@@ -38,8 +38,8 @@ const RATE_LIMIT_WARNING_THRESHOLD = 100;
 const MAX_SEARCH_RESULTS_WARNING = 1000;
 const MAX_PAGES = 100; // Maximum pagination limit
 const OPERATION_TIMEOUT = 300000; // 5 minutes
-const MAX_CONSECUTIVE_FAILURES = 5;
-const CIRCUIT_BREAKER_RESET_TIME = 30000; // 30 seconds
+const MAX_CONSECUTIVE_FAILURES = 10;
+const CIRCUIT_BREAKER_RESET_TIME = 10000; // 10 seconds
 
 // Sensitive field names to redact
 const SENSITIVE_FIELDS = ['token', 'secret', 'password', 'key', 'auth', 'credential'];
@@ -163,6 +163,11 @@ export class MyMCP extends McpAgent<Env, {}, Props> {
           canContinue: false,
           warning: `Circuit breaker open due to multiple failures. Retry after ${new Date(this.circuitBreakerOpenUntil).toISOString()}`
         };
+      }
+
+      // Auto-reset consecutive failures when circuit breaker has expired
+      if (this.consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+        this.consecutiveFailures = 0;
       }
 
       try {
@@ -2996,9 +3001,9 @@ export class MyMCP extends McpAgent<Env, {}, Props> {
 }
 
 // Feature flags
-const AUTO_REGISTER_CLIENTS = true;
+const AUTO_REGISTER_CLIENTS = false;
 const ALLOW_CUSTOM_GITHUB_APPS = true;
-const DEBUG_REQUESTS = true; // Activar logs de debugging
+const DEBUG_REQUESTS = false;
 
 // Auto-registro dinámico de clientes OAuth
 async function autoRegisterClient(request: Request, env: Env): Promise<void> {
